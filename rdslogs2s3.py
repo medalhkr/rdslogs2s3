@@ -1,7 +1,6 @@
 #!/bin/env python
 # coding=utf-8
 #
-import sys
 import os
 import gzip
 from datetime import datetime
@@ -10,8 +9,8 @@ import boto3
 from botocore.exceptions import ClientError
 
 REGION = os.environ['REGION']
-rds_client = boto3.client('rds', region_name=REGION)
-s3_client = boto3.client('s3', region_name=REGION)
+RDS_CLIENT = boto3.client('rds', region_name=REGION)
+S3_CLIENT = boto3.client('s3', region_name=REGION)
 
 def lambda_handler(event, context):
     rdslogs2s3(
@@ -20,13 +19,14 @@ def lambda_handler(event, context):
         os.environ['S3_BUCKET'],
     )
 
+
 def copy_log(instance, log_file_name, s3_bucket, s3_prefix):
     read_log_line_num = 2000
     tmp_file_name = '/tmp/tmp_log_file_{}'.format(log_file_name)
     with gzip.open(tmp_file_name, 'ab') as f:
         marker = '0'
         while True:
-            log = rds_client.download_db_log_file_portion(DBInstanceIdentifier=instance, LogFileName=log_file_name, NumberOfLines=read_log_line_num, Marker=marker)
+            log = RDS_CLIENT.download_db_log_file_portion(DBInstanceIdentifier=instance, LogFileName=log_file_name, NumberOfLines=read_log_line_num, Marker=marker)
             if not log['LogFileData']:
                 break
             if "[Your log message was truncated]" in log['LogFileData']:
@@ -38,7 +38,7 @@ def copy_log(instance, log_file_name, s3_bucket, s3_prefix):
 
     try:
         put_log_name = '{0}{1}.gz'.format(s3_prefix, log_file_name)
-        s3_client.upload_file(tmp_file_name, s3_bucket, put_log_name)
+        S3_CLIENT.upload_file(tmp_file_name, s3_bucket, put_log_name)
         print('put s3://{0}/{1}'.format(s3_bucket, put_log_name))
     except ClientError as e:
         print("Unexpected error: {}".format(e))
@@ -50,22 +50,22 @@ def copy_log(instance, log_file_name, s3_bucket, s3_prefix):
 
 def fetch_updated_at(s3_bucket, filename):
     try:
-        obj = s3_client.get_object(Bucket=s3_bucket, Key=filename)
+        obj = S3_CLIENT.get_object(Bucket=s3_bucket, Key=filename)
         return str(object=obj['Body'].read(), encoding='utf-8')
     except ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchKey':
             return '0'
         raise e
 
-def rdslogs2s3(RDS_INSTANCE, LOG_NAME, S3_BUCKET):
-    s3_prefix = 'db{0}/{1}/'.format(RDS_INSTANCE, LOG_NAME)
+def rdslogs2s3(rds_instance, log_name, s3_bucket):
+    s3_prefix = 'db{0}/{1}/'.format(rds_instance, log_name)
     timestamp_filename = s3_prefix + 'updated_at'
 
     try:
-        db_logs = rds_client.describe_db_log_files(
-            DBInstanceIdentifier=RDS_INSTANCE,
-            FilenameContains=LOG_NAME,
-            FileLastWritten=fetch_updated_at(S3_BUCKET, timestamp_filename)
+        db_logs = RDS_CLIENT.describe_db_log_files(
+            DBInstanceIdentifier=rds_instance,
+            FilenameContains=log_name,
+            FileLastWritten=fetch_updated_at(s3_bucket, timestamp_filename)
         )
     except ClientError as e:
         print("Unexpected error: {}".format(e))
@@ -73,10 +73,10 @@ def rdslogs2s3(RDS_INSTANCE, LOG_NAME, S3_BUCKET):
 
     for db_log in db_logs['DescribeDBLogFiles']:
         log_file_name = db_log['LogFileName']
-        copy_log(RDS_INSTANCE, log_file_name, S3_BUCKET, s3_prefix)
+        copy_log(rds_instance, log_file_name, s3_bucket, s3_prefix)
 
     checked_timestamp = int(time.mktime(datetime.now().timetuple())) * 1000
-    s3_client.put_object(Bucket=S3_BUCKET, Key=timestamp_filename, Body=str(checked_timestamp))
+    S3_CLIENT.put_object(Bucket=s3_bucket, Key=timestamp_filename, Body=str(checked_timestamp))
 
     return True
 
