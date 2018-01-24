@@ -64,7 +64,7 @@ def rdslogs2s3(rds_instance, log_name, s3_bucket):
     try:
         db_logs = RDS_CLIENT.describe_db_log_files(
             DBInstanceIdentifier=rds_instance,
-            FilenameContains=log_name,
+            FilenameContains=log_name + '.', # specify rotated log file
             FileLastWritten=fetch_updated_at(s3_bucket, timestamp_filename)
         )
     except ClientError as e:
