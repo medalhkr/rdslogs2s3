@@ -53,35 +53,33 @@ def rdslogs2s3(RDS_INSTANCE, LOG_NAME, S3_BUCKET, S3_KEY_PREFIX, REGION):
 
         local_log_name = '/tmp/{0}-{1}.log.gz'.format(log_file_name.replace('/', '-'), now)
         with gzip.open(local_log_name, 'ab') as f:
-            exists_data = True
-            loop = 0
-
-            while exists_data:
+            is_append = False
+            while True:
                 log = rds.download_db_log_file_portion(DBInstanceIdentifier=RDS_INSTANCE, LogFileName=log_file_name, NumberOfLines=read_log_line_num, Marker=marker)
+                if not log['LogFileData']:
+                    break
+                if "[Your log message was truncated]" in log['LogFileData']:
+                    read_log_line_num -= int(read_log_line_num * 0.1)
+                    print("found `truncated` message. retry line num, {}".format(read_log_line_num))
+                    continue
+                f.write(log['LogFileData'].encode('utf-8'))
+                marker = log['Marker']
+                is_append = True
 
-                if log['LogFileData']:
-                    if "[Your log message was truncated]" in log['LogFileData']:
-                        read_log_line_num -= int(read_log_line_num * 0.1)
-                        print("found `truncated` message. retry line num, {}".format(read_log_line_num))
-                        continue
-                    f.write(log['LogFileData'].encode('utf-8'))
-                    marker = log['Marker']
-                    loop += 1
-                else:
-                    exists_data = False
+        if not is_append:
+            break
 
-        if loop != 0:
-            try:
-                put_log_name = '{0}{1}/{2}/{3}.log.gz'.format(S3_KEY_PREFIX, RDS_INSTANCE, log_file_name, now)
-                s3.upload_file(local_log_name, S3_BUCKET, put_log_name)
-                print('put s3://{0}/{1}'.format(S3_BUCKET, put_log_name))
-                os.remove(local_log_name)
+        try:
+            put_log_name = '{0}{1}/{2}/{3}.log.gz'.format(S3_KEY_PREFIX, RDS_INSTANCE, log_file_name, now)
+            s3.upload_file(local_log_name, S3_BUCKET, put_log_name)
+            print('put s3://{0}/{1}'.format(S3_BUCKET, put_log_name))
+            os.remove(local_log_name)
 
-                s3.put_object(Bucket=S3_BUCKET, Key=markerfile_name, Body=marker)
-                print('put s3://{0}/{1}, now position {2}'.format(S3_BUCKET, markerfile_name, marker))
-            except ClientError as e:
-                print("Unexpected error: {}".format(e))
-                return "Failed"
+            s3.put_object(Bucket=S3_BUCKET, Key=markerfile_name, Body=marker)
+            print('put s3://{0}/{1}, now position {2}'.format(S3_BUCKET, markerfile_name, marker))
+        except ClientError as e:
+            print("Unexpected error: {}".format(e))
+            return "Failed"
 
     return "Success"
 
