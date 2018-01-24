@@ -18,13 +18,17 @@ import boto3
 from datetime import datetime
 from botocore.exceptions import ClientError
 
-RDS_INSTANCE = os.environ['RDS_INSTANCE']
-LOG_NAME = os.environ['LOG_NAME']
-S3_BUCKET = os.environ['S3_BUCKET']
-S3_KEY_PREFIX = os.environ['S3_KEY_PREFIX']
-REGION = os.environ['REGION']
 
 def lambda_handler(event, context):
+    rdslogs2s3(
+        os.environ['RDS_INSTANCE'],
+        os.environ['LOG_NAME'],
+        os.environ['S3_BUCKET'],
+        os.environ['S3_KEY_PREFIX'],
+        os.environ['REGION']
+    )
+
+def rdslogs2s3(RDS_INSTANCE, LOG_NAME, S3_BUCKET, S3_KEY_PREFIX, REGION):
     now = datetime.now().strftime('%Y%m%d%H%M%S')
     read_log_line_num = 2000
     rds = boto3.client('rds', region_name=REGION)
