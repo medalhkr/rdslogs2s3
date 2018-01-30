@@ -68,6 +68,9 @@ def rdslogs2s3(rds_instance, log_name, s3_bucket):
         print("Unexpected error: {}".format(e))
         return False
 
+    if len(db_logs['DescribeDBLogFiles']) == 0:
+        return True # skip update checked_timestamp if there is no file to upload
+
     for db_log in db_logs['DescribeDBLogFiles']:
         log_file_name = db_log['LogFileName']
         copy_log(rds_instance, log_file_name, s3_bucket, s3_prefix)
