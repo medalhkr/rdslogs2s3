@@ -7,28 +7,12 @@ Save RDS Logs file to S3.
 - python3
 - boto3
 
-## RDS Parametar
-|key|value|
-|:--|:--|
-|log_output|FILE|
-
-http://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.Concepts.MySQL.html
-
 ## IAM Role
 
 ```
 {
     "Version": "2012-10-17",
     "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "logs:CreateLogGroup",
-                "logs:CreateLogStream",
-                "logs:PutLogEvents"
-            ],
-            "Resource": "arn:aws:logs:*:*:*"
-        },
         {
             "Effect": "Allow",
             "Action": [
@@ -62,14 +46,3 @@ http://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.Concepts.My
     ]
 }
 ```
-
-## Environment
-
-|Key|Value|
-|:---|:---|
-|RDS_INSTANCE|RDS instance Name|
-|LOG_NAME|RDS log name|
-|S3_BUCKET|Save s3 bucket name|
-|S3_KEY_PREFIX|Object key prefix|
-|REGION|aws region for RDS/S3|
-|TZ|timezone|
