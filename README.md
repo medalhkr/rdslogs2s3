@@ -1,3 +1,5 @@
+## the code was moved to https://github.com/medalhkr/lambda-functions
+
 rdslogs2s3
 ===
 
